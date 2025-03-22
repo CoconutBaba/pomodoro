@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Polished Pomodoro Timer with Todo List</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Google Fonts for a better look -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <!-- Chart.js Library -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* Base Styling */
+    body {
+      font-family: 'Roboto', sans-serif;
+      background: linear-gradient(135deg, #74ABE2, #5563DE);
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    .container {
+      max-width: 900px;
+      margin: auto;
+      background: #fff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+      transition: opacity 0.5s ease;
+    }
+    h1, h2 {
+      text-align: center;
+      margin: 0 0 20px 0;
+    }
+    /* Timer Styling */
+    #timer {
+      font-size: 80px;
+      text-align: center;
+      margin: 40px 0;
+      cursor: pointer;
+      user-select: none;
+      transition: font-size 0.3s ease;
+    }
+    /* Controls Styling */
+    .controls {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .controls button, .controls input[type="number"] {
+      margin: 5px;
+      padding: 10px 15px;
+      font-size: 16px;
+      border: none;
+      border-radius: 4px;
+      background: #5563DE;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    .controls button:hover, .controls input[type="number"]:hover {
+      background: #3d4abf;
+    }
+    .controls input[type="number"] {
+      width: 70px;
+      text-align: center;
+    }
+    /* Session List Styling */
+    #session-section {
+      margin-top: 30px;
+    }
+    #session-list {
+      list-style: none;
+      padding: 0;
+      max-height: 250px;
+      overflow-y: auto;
+    }
+    #session-list li {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      font-size: 14px;
+    }
+    #session-list li span {
+      flex: 1;
+    }
+    #session-list li button {
+      margin-left: 10px;
+      padding: 5px 10px;
+      font-size: 12px;
+      border: none;
+      border-radius: 4px;
+      background: #FF6B6B;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+    #session-list li button:hover {
+      background: #e05555;
+    }
+    #session-list li input[type="time"] {
+      padding: 5px;
+      margin: 5px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    /* Graph Section Styling */
+    #graph-section {
+      margin-top: 30px;
+      text-align: center;
+    }
+    /* Full Timer Mode */
+    .full-timer-mode .container > *:not(#timer-section) {
+      display: none;
+    }
+    /* Todo List Styles */
+    .todo-fab {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #5563DE;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      z-index: 1001;
+      font-size: 32px;
+      line-height: 0;
+    }
+    .todo-panel {
+      position: fixed;
+      top: 0;
+      right: -300px;
+      width: 300px;
+      height: 100vh;
+      background: #fff;
+      box-shadow: -4px 0 12px rgba(0,0,0,0.1);
+      padding: 1.5rem;
+      transition: right 0.3s ease;
+      z-index: 999;
+    }
+    .todo-panel.open {
+      right: 0;
+    }
+    #todo-list {
+      list-style: none;
+      padding: 0;
+      margin: 1rem 0;
+    }
+    .todo-item {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #eee;
+    }
+    .todo-item input[type="text"] {
+      flex: 1;
+      border: none;
+      padding: 0.5rem;
+      margin-right: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container" id="main-container">
+    <h1>Pomodoro Timer</h1>
+    <!-- Timer Section -->
+    <div id="timer-section">
+      <div id="timer">25:00</div>
+      <div class="controls" id="controls-div">
+        <input type="number" id="pomodoro-length" value="25" min="1"> minutes
+        <button id="start-btn">Start</button>
+        <button id="pause-btn" style="display:none;">Pause</button>
+        <button id="reset-btn">Reset</button>
+      </div>
+    </div>
+
+    <!-- Session List Section -->
+    <div id="session-section">
+      <h2>Session History</h2>
+      <ul id="session-list"></ul>
+    </div>
+
+    <!-- Graph Section -->
+    <div id="graph-section">
+      <h2>Weekly Study Progress (in seconds)</h2>
+      <canvas id="progressChart" width="400" height="200"></canvas>
+    </div>
+  </div>
+
+  <!-- Todo List HTML -->
+  <div class="todo-fab">+</div>
+  <div class="todo-panel">
+    <h3>Todo List</h3>
+    <input type="text" id="todo-input" placeholder="Add a new task...">
+    <ul id="todo-list"></ul>
+  </div>
+
+  <script>
+    /********** Helper Functions for Local Storage **********/
+    function saveData(key, data) {
+      localStorage.setItem(key, JSON.stringify(data));
+    }
+    function loadData(key, defaultVal) {
+      const data = localStorage.getItem(key);
+      return data ? JSON.parse(data) : defaultVal;
+    }
+
+    /********** Global Variables **********/
+    let timerInterval;
+    let remainingSeconds;
+    let isRunning = false;
+    let currentSession = null;  // holds the active session object
+    let editingSessionIndex = null; // holds the index of the session being edited
+    let sessions = loadData('sessions', []);
+    let chart;
+
+    const timerDisplay = document.getElementById('timer');
+    const startBtn = document.getElementById('start-btn');
+    const pauseBtn = document.getElementById('pause-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    const pomodoroLengthInput = document.getElementById('pomodoro-length');
+    const sessionList = document.getElementById('session-list');
+    const mainContainer = document.getElementById('main-container');
+    const controlsDiv = document.getElementById('controls-div');
+
+    /********** UI Hide/Show Functions **********/
+    function hideExtraUI() {
+      mainContainer.classList.add('full-timer-mode');
+    }
+    function showExtraUI() {
+      mainContainer.classList.remove('full-timer-mode');
+    }
+
+    /********** Timer Functions **********/
+    function updateTimerDisplay() {
+      let displayTime;
+      // If remainingSeconds is non-negative, show countdown;
+      // if negative, show overtime with a plus sign.
+      if (remainingSeconds >= 0) {
+        const minutes = Math.floor(remainingSeconds / 60);
+        const seconds = remainingSeconds % 60;
+        displayTime = String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+      } else {
+        const overtime = Math.abs(remainingSeconds);
+        const minutes = Math.floor(overtime / 60);
+        const seconds = overtime % 60;
+        displayTime = '+' + String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+      }
+      timerDisplay.textContent = displayTime;
+      
+      // Change timer text color to red when below 1 minute remaining (or in overtime)
+      if (remainingSeconds < 60) {
+        timerDisplay.style.color = 'red';
+      } else {
+        timerDisplay.style.color = '';
+      }
+      
+      // Calculate total studied time from all sessions
+      let totalStudiedSeconds = 0;
+      sessions.forEach(session => {
+        if (session.duration) {
+          totalStudiedSeconds += session.duration;
+        }
+      });
+      const totalHours = Math.floor(totalStudiedSeconds / 3600);
+      const totalMinutes = Math.floor((totalStudiedSeconds % 3600) / 60);
+      const totalSecs = totalStudiedSeconds % 60;
+      let formattedStudied;
+      if (totalHours > 0) {
+        formattedStudied = `${totalHours}:${String(totalMinutes).padStart(2, '0')}:${String(totalSecs).padStart(2, '0')}`;
+      } else {
+        formattedStudied = `${totalMinutes}:${String(totalSecs).padStart(2, '0')}`;
+      }
+      // Update the document title with the total studied time.
+      document.title = "Studied: " + formattedStudied;
+    }
+
+    // The tick function now always decrements remainingSeconds,
+    // allowing the timer to run into negative (overtime) instead of stopping.
+    function tick() {
+      remainingSeconds--;
+      updateTimerDisplay();
+      // Update the active session duration in real time.
+      if (currentSession) {
+        currentSession.duration = Math.floor((new Date() - new Date(currentSession.start)) / 1000);
+        saveData('sessions', sessions);
+        renderSessions();
+        updateChart();
+      }
+    }
+
+    function startTimer() {
+      if (!isRunning) {
+        isRunning = true;
+        hideExtraUI();
+        startBtn.style.display = "none";
+        resetBtn.style.display = "none";
+        pauseBtn.style.display = "inline-block";
+        // Start a new session with the current time as start.
+        currentSession = {
+          start: new Date().toISOString(),
+          end: null,
+          duration: 0
+        };
+        sessions.push(currentSession);
+        saveData('sessions', sessions);
+        timerInterval = setInterval(tick, 1000);
+      }
+    }
+
+    function stopTimer() {
+      if (isRunning) {
+        clearInterval(timerInterval);
+        isRunning = false;
+        showExtraUI();
+        startBtn.style.display = "inline-block";
+        resetBtn.style.display = "inline-block";
+        pauseBtn.style.display = "none";
+        if (currentSession) {
+          currentSession.end = new Date().toISOString();
+          currentSession.duration = Math.floor((new Date(currentSession.end) - new Date(currentSession.start)) / 1000);
+          currentSession = null;
+          saveData('sessions', sessions);
+          renderSessions();
+          updateChart();
+        }
+      }
+    }
+
+    function resetTimer() {
+      stopTimer();
+      const minutes = parseInt(pomodoroLengthInput.value) || 25;
+      remainingSeconds = minutes * 60;
+      updateTimerDisplay();
+    }
+
+    // Clicking the timer pauses it.
+    timerDisplay.addEventListener('click', () => {
+      if (isRunning) {
+        stopTimer();
+      }
+    });
+    startBtn.addEventListener('click', startTimer);
+    pauseBtn.addEventListener('click', stopTimer);
+    resetBtn.addEventListener('click', resetTimer);
+    pomodoroLengthInput.addEventListener('change', resetTimer);
+
+    // Initialize timer display on page load
+    resetTimer();
+
+    /********** Session List Rendering, Inline Editing & Deleting **********/
+    function renderSessions() {
+      sessionList.innerHTML = '';
+      // Sort sessions by start time
+      sessions.sort((a, b) => new Date(a.start) - new Date(b.start));
+      sessions.forEach((session, index) => {
+        const li = document.createElement('li');
+        if (editingSessionIndex === index) {
+          const startInput = document.createElement('input');
+          startInput.type = 'time';
+          startInput.id = `edit-start-${index}`;
+          startInput.value = new Date(session.start).toTimeString().slice(0,5);
+
+          const endInput = document.createElement('input');
+          endInput.type = 'time';
+          endInput.id = `edit-end-${index}`;
+          endInput.value = session.end ? new Date(session.end).toTimeString().slice(0,5) : '';
+
+          const saveBtn = document.createElement('button');
+          saveBtn.textContent = 'Save';
+          saveBtn.onclick = () => saveSessionEdit(index);
+          const cancelBtn = document.createElement('button');
+          cancelBtn.textContent = 'Cancel';
+          cancelBtn.onclick = cancelSessionEdit;
+
+          li.appendChild(startInput);
+          li.appendChild(endInput);
+          li.appendChild(saveBtn);
+          li.appendChild(cancelBtn);
+        } else {
+          const startTime = new Date(session.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const endTime = session.end ? new Date(session.end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'In Progress';
+          const duration = session.duration ? formatDuration(session.duration) : 'In Progress';
+          li.innerHTML = `<span>Session ${index + 1}: ${startTime} - ${endTime} | Duration: ${duration}</span>`;
+          const editBtn = document.createElement('button');
+          editBtn.textContent = 'Edit';
+          editBtn.onclick = () => { editingSessionIndex = index; renderSessions(); };
+          const deleteBtn = document.createElement('button');
+          deleteBtn.textContent = 'Delete';
+          deleteBtn.onclick = () => deleteSession(index);
+          li.appendChild(editBtn);
+          li.appendChild(deleteBtn);
+        }
+        sessionList.appendChild(li);
+      });
+    }
+
+    function formatDuration(sec) {
+      const hours = Math.floor(sec / 3600);
+      const minutes = Math.floor((sec % 3600) / 60);
+      const seconds = sec % 60;
+      if (hours > 0) {
+        return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+      }
+      return `${minutes}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    function saveSessionEdit(index) {
+      const startInput = document.getElementById(`edit-start-${index}`);
+      const endInput = document.getElementById(`edit-end-${index}`);
+      const originalDate = new Date(sessions[index].start);
+      const year = originalDate.getFullYear();
+      const month = originalDate.getMonth();
+      const day = originalDate.getDate();
+      
+      const [startHour, startMinute] = startInput.value.split(":");
+      const newStart = new Date(year, month, day, parseInt(startHour), parseInt(startMinute));
+      sessions[index].start = newStart.toISOString();
+
+      if (endInput.value) {
+        const [endHour, endMinute] = endInput.value.split(":");
+        const newEnd = new Date(year, month, day, parseInt(endHour), parseInt(endMinute));
+        sessions[index].end = newEnd.toISOString();
+        sessions[index].duration = Math.floor((newEnd - newStart) / 1000);
+      } else if (sessions[index].end) {
+        const existingEnd = new Date(sessions[index].end);
+        sessions[index].duration = Math.floor((existingEnd - newStart) / 1000);
+      } else {
+        sessions[index].end = null;
+        sessions[index].duration = 0;
+      }
+      editingSessionIndex = null;
+      saveData('sessions', sessions);
+      renderSessions();
+      updateChart();
+    }
+
+    function cancelSessionEdit() {
+      editingSessionIndex = null;
+      renderSessions();
+    }
+
+    // Delete session immediately without confirmation.
+    function deleteSession(index) {
+      sessions.splice(index, 1);
+      saveData('sessions', sessions);
+      renderSessions();
+      updateChart();
+    }
+
+    /********** Weekly Progress Graph using Chart.js **********/
+    function updateChart() {
+      const progressData = {};
+      sessions.forEach(session => {
+        if (session.duration && session.start) {
+          const date = new Date(session.start).toISOString().split('T')[0];
+          progressData[date] = (progressData[date] || 0) + session.duration;
+        }
+      });
+      const today = new Date();
+      const weekDays = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(today);
+        d.setDate(today.getDate() - today.getDay() + i);
+        const dateStr = d.toISOString().split('T')[0];
+        weekDays.push({ label: d.toLocaleDateString('en-US', { weekday: 'short' }), date: dateStr });
+      }
+      const labels = weekDays.map(day => day.label);
+      const data = weekDays.map(day => progressData[day.date] || 0);
+
+      const ctx = document.getElementById('progressChart').getContext('2d');
+      if (chart) {
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = data;
+        chart.update();
+      } else {
+        chart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Seconds Studied',
+              data: data,
+              backgroundColor: 'rgba(75, 192, 192, 0.5)',
+              borderColor: 'rgba(75, 192, 192, 1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: { stepSize: 60 }
+              }
+            }
+          }
+        });
+      }
+    }
+
+    // Initial rendering
+    renderSessions();
+    updateChart();
+
+    /********** Todo List Logic **********/
+    const todoFab = document.querySelector('.todo-fab');
+    const todoPanel = document.querySelector('.todo-panel');
+    const todoList = document.getElementById('todo-list');
+    const todoInput = document.getElementById('todo-input');
+
+    todoFab.addEventListener('click', () => {
+      todoPanel.classList.toggle('open');
+    });
+
+    function createTodoItem(text) {
+      const li = document.createElement('li');
+      li.className = 'todo-item';
+      li.innerHTML = `
+        <input type="text" value="${text}">
+        <button class="delete-btn">×</button>
+      `;
+      return li;
+    }
+
+    todoInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && todoInput.value.trim()) {
+        todoList.appendChild(createTodoItem(todoInput.value.trim()));
+        todoInput.value = '';
+      }
+    });
+
+    todoList.addEventListener('click', (e) => {
+      if (e.target.classList.contains('delete-btn')) {
+        e.target.parentElement.remove();
+      }
+    });
+  </script>
+</body>
+</html>
