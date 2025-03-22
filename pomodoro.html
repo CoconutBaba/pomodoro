@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Polished Pomodoro Timer with Todo List</title>
+  <title>00:00</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- Google Fonts for a better look -->
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
@@ -252,16 +252,16 @@
       }
       timerDisplay.textContent = displayTime;
       timerDisplay.style.color = remainingSeconds < 60 ? 'red' : '';
-      
-      // Update document title with total studied time.
-      let totalStudiedSeconds = sessions.reduce((acc, session) => session.duration ? acc + session.duration : acc, 0);
-      const totalHours = Math.floor(totalStudiedSeconds / 3600);
-      const totalMinutes = Math.floor((totalStudiedSeconds % 3600) / 60);
-      const totalSecs = totalStudiedSeconds % 60;
-      const formattedStudied = totalHours > 0 
-        ? `${totalHours}:${String(totalMinutes).padStart(2, '0')}:${String(totalSecs).padStart(2, '0')}`
-        : `${totalMinutes}:${String(totalSecs).padStart(2, '0')}`;
-      document.title = "Studied: " + formattedStudied;
+
+      // Update document title with the current session's time.
+      let sessionDuration = currentSession ? currentSession.duration : 0;
+      const hours = Math.floor(sessionDuration / 3600);
+      const minutes = Math.floor((sessionDuration % 3600) / 60);
+      const seconds = sessionDuration % 60;
+      const formattedSession = hours > 0 
+        ? `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+        : `${minutes}:${String(seconds).padStart(2, '0')}`;
+      document.title = formattedSession;
     }
 
     /********** Modified Weekly Progress Graph **********/
@@ -326,7 +326,7 @@
               tooltip: {
                 callbacks: {
                   label: function(context) {
-                    const value = context.raw; // Use context.raw instead of context.rawValue
+                    const value = context.raw;
                     const minutes = Math.floor(value / 60);
                     const seconds = value % 60;
                     return `${minutes}m ${seconds}s studied`;
@@ -350,7 +350,7 @@
         const now = new Date();
         currentSession = {
           start: now.toISOString(),
-          initialDate: now.toISOString().split('T')[0], // Store start date separately
+          initialDate: now.toISOString().split('T')[0],
           end: null,
           duration: 0
         };
@@ -370,7 +370,6 @@
         updateTimerDisplay();
         updateChart();
       }
-      // You can add additional tick logic here if needed.
     }
 
     function stopTimer() {
