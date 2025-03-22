@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Focus Flow</title>
+  <title>Polished Pomodoro Timer with Todo List</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- Google Fonts for a better look -->
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
@@ -168,7 +168,7 @@
 </head>
 <body>
   <div class="container" id="main-container">
-    <h1>Focus Flow</h1>
+    <h1>Pomodoro Timer</h1>
     <!-- Timer Section -->
     <div id="timer-section">
       <div id="timer">25:00</div>
@@ -237,11 +237,9 @@
       mainContainer.classList.remove('full-timer-mode');
     }
 
-    /********** Timer Functions **********/
+    /********** Timer Display Update **********/
     function updateTimerDisplay() {
       let displayTime;
-      // If remainingSeconds is non-negative, show countdown;
-      // if negative, show overtime with a plus sign.
       if (remainingSeconds >= 0) {
         const minutes = Math.floor(remainingSeconds / 60);
         const seconds = remainingSeconds % 60;
@@ -253,48 +251,94 @@
         displayTime = '+' + String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
       }
       timerDisplay.textContent = displayTime;
+      timerDisplay.style.color = remainingSeconds < 60 ? 'red' : '';
       
-      // Change timer text color to red when below 1 minute remaining (or in overtime)
-      if (remainingSeconds < 60) {
-        timerDisplay.style.color = 'red';
-      } else {
-        timerDisplay.style.color = '';
-      }
-      
-      // Calculate total studied time from all sessions
-      let totalStudiedSeconds = 0;
-      sessions.forEach(session => {
-        if (session.duration) {
-          totalStudiedSeconds += session.duration;
-        }
-      });
+      // Update document title with total studied time.
+      let totalStudiedSeconds = sessions.reduce((acc, session) => session.duration ? acc + session.duration : acc, 0);
       const totalHours = Math.floor(totalStudiedSeconds / 3600);
       const totalMinutes = Math.floor((totalStudiedSeconds % 3600) / 60);
       const totalSecs = totalStudiedSeconds % 60;
-      let formattedStudied;
-      if (totalHours > 0) {
-        formattedStudied = `${totalHours}:${String(totalMinutes).padStart(2, '0')}:${String(totalSecs).padStart(2, '0')}`;
-      } else {
-        formattedStudied = `${totalMinutes}:${String(totalSecs).padStart(2, '0')}`;
-      }
-      // Update the document title with the total studied time.
+      const formattedStudied = totalHours > 0 
+        ? `${totalHours}:${String(totalMinutes).padStart(2, '0')}:${String(totalSecs).padStart(2, '0')}`
+        : `${totalMinutes}:${String(totalSecs).padStart(2, '0')}`;
       document.title = "Studied: " + formattedStudied;
     }
 
-    // The tick function now always decrements remainingSeconds,
-    // allowing the timer to run into negative (overtime) instead of stopping.
-    function tick() {
-      remainingSeconds--;
-      updateTimerDisplay();
-      // Update the active session duration in real time.
-      if (currentSession) {
-        currentSession.duration = Math.floor((new Date() - new Date(currentSession.start)) / 1000);
-        saveData('sessions', sessions);
-        renderSessions();
-        updateChart();
+    /********** Modified Weekly Progress Graph **********/
+    function updateChart() {
+      const progressData = {};
+      sessions.forEach(session => {
+        if (session.duration && session.start) {
+          const sessionDate = new Date(session.start);
+          const dateKey = sessionDate.toISOString().split('T')[0];
+          progressData[dateKey] = (progressData[dateKey] || 0) + session.duration;
+        }
+      });
+
+      // Generate labels for the last 7 days including today
+      const today = new Date();
+      const weekDays = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const dateStr = d.toISOString().split('T')[0];
+        weekDays.push({ 
+          label: d.toLocaleDateString('en-US', { weekday: 'short' }), 
+          date: dateStr,
+          displayDate: d.toLocaleDateString()
+        });
+      }
+
+      const labels = weekDays.map(day => day.displayDate);
+      const data = weekDays.map(day => progressData[day.date] || 0);
+
+      const ctx = document.getElementById('progressChart').getContext('2d');
+      if (chart) {
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = data;
+        chart.update();
+      } else {
+        chart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Seconds Studied',
+              data: data,
+              backgroundColor: 'rgba(75, 192, 192, 0.5)',
+              borderColor: 'rgba(75, 192, 192, 1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: { 
+                  stepSize: 60,
+                  callback: function(value) {
+                    return Math.floor(value / 60) + 'm';
+                  }
+                }
+              }
+            },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: function(context) {
+                    const minutes = Math.floor(context.rawValue / 60);
+                    const seconds = context.rawValue % 60;
+                    return `${minutes}m ${seconds}s studied`;
+                  }
+                }
+              }
+            }
+          }
+        });
       }
     }
 
+    /********** Modified Session Handling **********/
     function startTimer() {
       if (!isRunning) {
         isRunning = true;
@@ -302,9 +346,10 @@
         startBtn.style.display = "none";
         resetBtn.style.display = "none";
         pauseBtn.style.display = "inline-block";
-        // Start a new session with the current time as start.
+        const now = new Date();
         currentSession = {
-          start: new Date().toISOString(),
+          start: now.toISOString(),
+          initialDate: now.toISOString().split('T')[0], // Store start date separately
           end: null,
           duration: 0
         };
@@ -312,6 +357,19 @@
         saveData('sessions', sessions);
         timerInterval = setInterval(tick, 1000);
       }
+    }
+
+    function tick() {
+      if (remainingSeconds > 0) {
+        remainingSeconds--;
+        const sessionStart = new Date(currentSession.start);
+        const now = new Date();
+        currentSession.duration = Math.floor((now - sessionStart) / 1000);
+        saveData('sessions', sessions);
+        updateTimerDisplay();
+        updateChart();
+      }
+      // You can add additional tick logic here if needed.
     }
 
     function stopTimer() {
@@ -340,7 +398,6 @@
       updateTimerDisplay();
     }
 
-    // Clicking the timer pauses it.
     timerDisplay.addEventListener('click', () => {
       if (isRunning) {
         stopTimer();
@@ -357,7 +414,6 @@
     /********** Session List Rendering, Inline Editing & Deleting **********/
     function renderSessions() {
       sessionList.innerHTML = '';
-      // Sort sessions by start time
       sessions.sort((a, b) => new Date(a.start) - new Date(b.start));
       sessions.forEach((session, index) => {
         const li = document.createElement('li');
@@ -366,19 +422,16 @@
           startInput.type = 'time';
           startInput.id = `edit-start-${index}`;
           startInput.value = new Date(session.start).toTimeString().slice(0,5);
-
           const endInput = document.createElement('input');
           endInput.type = 'time';
           endInput.id = `edit-end-${index}`;
           endInput.value = session.end ? new Date(session.end).toTimeString().slice(0,5) : '';
-
           const saveBtn = document.createElement('button');
           saveBtn.textContent = 'Save';
           saveBtn.onclick = () => saveSessionEdit(index);
           const cancelBtn = document.createElement('button');
           cancelBtn.textContent = 'Cancel';
           cancelBtn.onclick = cancelSessionEdit;
-
           li.appendChild(startInput);
           li.appendChild(endInput);
           li.appendChild(saveBtn);
@@ -446,7 +499,6 @@
       renderSessions();
     }
 
-    // Delete session immediately without confirmation.
     function deleteSession(index) {
       sessions.splice(index, 1);
       saveData('sessions', sessions);
@@ -454,57 +506,7 @@
       updateChart();
     }
 
-    /********** Weekly Progress Graph using Chart.js **********/
-    function updateChart() {
-      const progressData = {};
-      sessions.forEach(session => {
-        if (session.duration && session.start) {
-          const date = new Date(session.start).toISOString().split('T')[0];
-          progressData[date] = (progressData[date] || 0) + session.duration;
-        }
-      });
-      const today = new Date();
-      const weekDays = [];
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(today);
-        d.setDate(today.getDate() - today.getDay() + i);
-        const dateStr = d.toISOString().split('T')[0];
-        weekDays.push({ label: d.toLocaleDateString('en-US', { weekday: 'short' }), date: dateStr });
-      }
-      const labels = weekDays.map(day => day.label);
-      const data = weekDays.map(day => progressData[day.date] || 0);
-
-      const ctx = document.getElementById('progressChart').getContext('2d');
-      if (chart) {
-        chart.data.labels = labels;
-        chart.data.datasets[0].data = data;
-        chart.update();
-      } else {
-        chart = new Chart(ctx, {
-          type: 'bar',
-          data: {
-            labels: labels,
-            datasets: [{
-              label: 'Seconds Studied',
-              data: data,
-              backgroundColor: 'rgba(75, 192, 192, 0.5)',
-              borderColor: 'rgba(75, 192, 192, 1)',
-              borderWidth: 1
-            }]
-          },
-          options: {
-            scales: {
-              y: {
-                beginAtZero: true,
-                ticks: { stepSize: 60 }
-              }
-            }
-          }
-        });
-      }
-    }
-
-    // Initial rendering
+    // Initial rendering of sessions and chart
     renderSessions();
     updateChart();
 
