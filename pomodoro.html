@@ -360,16 +360,15 @@
       }
     }
 
+    // Modified tick: always update (allowing negative, overtime values)
     function tick() {
-      if (remainingSeconds > 0) {
-        remainingSeconds--;
-        const sessionStart = new Date(currentSession.start);
-        const now = new Date();
-        currentSession.duration = Math.floor((now - sessionStart) / 1000);
-        saveData('sessions', sessions);
-        updateTimerDisplay();
-        updateChart();
-      }
+      remainingSeconds--;
+      const sessionStart = new Date(currentSession.start);
+      const now = new Date();
+      currentSession.duration = Math.floor((now - sessionStart) / 1000);
+      saveData('sessions', sessions);
+      updateTimerDisplay();
+      updateChart();
     }
 
     function stopTimer() {
@@ -446,7 +445,12 @@
           editBtn.onclick = () => { editingSessionIndex = index; renderSessions(); };
           const deleteBtn = document.createElement('button');
           deleteBtn.textContent = 'Delete';
-          deleteBtn.onclick = () => deleteSession(index);
+          // Confirmation popup before deletion
+          deleteBtn.onclick = () => {
+            if (confirm("Are you sure you want to delete this session?")) {
+              deleteSession(index);
+            }
+          };
           li.appendChild(editBtn);
           li.appendChild(deleteBtn);
         }
