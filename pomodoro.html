@@ -326,8 +326,9 @@
               tooltip: {
                 callbacks: {
                   label: function(context) {
-                    const minutes = Math.floor(context.rawValue / 60);
-                    const seconds = context.rawValue % 60;
+                    const value = context.raw; // Use context.raw instead of context.rawValue
+                    const minutes = Math.floor(value / 60);
+                    const seconds = value % 60;
                     return `${minutes}m ${seconds}s studied`;
                   }
                 }
